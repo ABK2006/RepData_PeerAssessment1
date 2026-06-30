@@ -1,0 +1,72 @@
+---
+title: '"PA1_template.Rmd"'
+author: "Arun"
+date: "2026-06-30"
+output: html_document
+---
+
+`title: "Reproducible Research: Peer Assessment 1" output:    html_document:   keep_md: true`
+
+library(dplyr) library(ggplot2)
+
+# Unzip and load the dataset
+
+if(!file.exists("activity.csv")) { unzip("activity.zip") } activity_data \<- read.csv("activity.csv")
+
+# Convert date column from character to Date type
+
+activity_data$date <- as.Date(activity_data$date, format="%Y-%m-%d") \# Calculate total steps per day daily_steps \<- activity_data %\>% filter(!is.na(steps)) %\>% group_by(date) %\>% summarize(total_steps = sum(steps))
+
+# Plot the histogram
+
+ggplot(daily_steps, aes(x = total_steps)) + geom_histogram(fill = "steelblue", color = "black", bins = 30) + labs(title = "Histogram of Total Steps per Day", x = "Total Steps", y = "Frequency") + theme_minimal()
+
+mean_steps \<- mean(daily_steps$total_steps)
+median_steps <- median(daily_steps$total_steps)
+
+cat("Mean total number of steps per day:", mean_steps, "\n") cat("Median total number of steps per day:", median_steps, "\n")
+
+# Calculate average steps per interval
+
+interval_steps \<- activity_data %\>% filter(!is.na(steps)) %\>% group_by(interval) %\>% summarize(avg_steps = mean(steps))
+
+# Plot time series
+
+ggplot(interval_steps, aes(x = interval, y = avg_steps)) + geom_line(color = "darkred") + labs(title = "Average Daily Activity Pattern", x = "5-Minute Interval", y = "Average Number of Steps") + theme_minimal()
+
+max_interval \<- interval_steps$interval[which.max(interval_steps$avg_steps)] max_steps \<- max(interval_steps\$avg_steps)
+
+cat("The 5-minute interval with the maximum average steps is:", max_interval, "\n")
+
+total_nas \<- sum(is.na(activity_data\$steps)) cat("Total number of missing values in the dataset:", total_nas, "\n")
+
+# Join the original data with the interval averages, then replace NAs
+
+imputed_data \<- activity_data %\>% left_join(interval_steps, by = "interval") %\>% mutate(steps = ifelse(is.na(steps), avg_steps, steps)) %\>% select(-avg_steps) \# Drop the helper column
+
+# Calculate new daily totals
+
+new_daily_steps \<- imputed_data %\>% group_by(date) %\>% summarize(total_steps = sum(steps))
+
+# Plot new histogram
+
+ggplot(new_daily_steps, aes(x = total_steps)) + geom_histogram(fill = "forestgreen", color = "black", bins = 30) + labs(title = "Histogram of Total Steps per Day (Imputed Data)", x = "Total Steps", y = "Frequency") + theme_minimal()
+
+# Calculate new mean and median
+
+new_mean_steps \<- mean(new_daily_steps$total_steps)
+new_median_steps <- median(new_daily_steps$total_steps)
+
+cat("New Mean:", new_mean_steps, "\n") cat("New Median:", new_median_steps, "\n")
+
+# Create the day_type factor variable
+
+imputed_data \<- imputed_data %\>% mutate(day_type = ifelse(weekdays(date) %in% c("Saturday", "Sunday"), "Weekend", "Weekday")) %\>% mutate(day_type = as.factor(day_type))
+
+# Aggregate by interval and day_type
+
+interval_day_steps \<- imputed_data %\>% group_by(interval, day_type) %\>% summarize(avg_steps = mean(steps))
+
+# Create the panel plot using ggplot2 facet_grid
+
+ggplot(interval_day_steps, aes(x = interval, y = avg_steps, color = day_type)) + geom_line() + facet_grid(day_type \~ .) + labs(title = "Activity Patterns: Weekdays vs. Weekends", x = "5-Minute Interval", y = "Average Number of Steps") + theme_minimal() + theme(legend.position = "none")
